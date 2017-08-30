@@ -11,7 +11,8 @@ import java.net.URISyntaxException;
 import java.net.URL;
 
 
-public class HttpRequestHandler extends SimpleChannelInboundHandler<FullHttpRequest> { //1
+public class HttpRequestHandler extends SimpleChannelInboundHandler<FullHttpRequest> { //1.扩展 SimpleChannelInboundHandler 用于处理 FullHttpRequest信息
+
     private final String wsUri;
     private static final File INDEX;
 
@@ -32,21 +33,22 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<FullHttpRequ
 
     @Override
     public void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
+        //2如果请求是 WebSocket 升级，递增引用计数器（保留）并且将它传递给在 ChannelPipeline 中的下个 ChannelInboundHandler
         if (wsUri.equalsIgnoreCase(request.getUri())) {
-            ctx.fireChannelRead(request.retain());                  //2
+            ctx.fireChannelRead(request.retain());
         } else {
             if (HttpHeaders.is100ContinueExpected(request)) {
-                send100Continue(ctx);                               //3
+                send100Continue(ctx);                               //3处理符合 HTTP 1.1的 “100 Continue” 请求
             }
-            RandomAccessFile file = new RandomAccessFile(INDEX, "r");//4
+            RandomAccessFile file = new RandomAccessFile(INDEX, "r");//4读取默认的 WebsocketChatClient.html 页面
             HttpResponse response = new DefaultHttpResponse(request.getProtocolVersion(), HttpResponseStatus.OK);
             response.headers().set(HttpHeaders.Names.CONTENT_TYPE, "text/html; charset=UTF-8");
             boolean keepAlive = HttpHeaders.isKeepAlive(request);
-            if (keepAlive) {                                        //5
+            if (keepAlive) {                                        //5判断 keepalive 是否在请求头里面
                 response.headers().set(HttpHeaders.Names.CONTENT_LENGTH, file.length());
                 response.headers().set(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
             }
-            ctx.write(response);                    //6
+            ctx.write(response);                    //6写 HttpResponse 到客户端
             if (ctx.pipeline().get(SslHandler.class) == null) {     //7
                 ctx.write(new DefaultFileRegion(file.getChannel(), 0, file.length()));
             } else {
